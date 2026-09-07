@@ -255,13 +255,13 @@ MODELS = [
         "quantization": "",
     },
     {
-        "display_name": "gemini-3-7-flash",
-        "output": "evals/results_gemini_3_7_flash.json",
+        "display_name": "gemini-3-8-flash",
+        "output": "evals/results_gemini_3_8_flash.json",
         "args": [
             "--model",
             "gemini",
             "--gemini-model",
-            "gemini-3.7-flash",
+            "gemini-3.8-flash",
         ],
         "cloud": True,
         "needs_api_key": True,
