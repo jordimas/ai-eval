@@ -28,6 +28,11 @@ MODELS = [
         "extra": [],
     },
     {
+        "name": "ST-NLI-ca_paraphrase-multilingual-mpnet-base",
+        "id": "projecte-aina/ST-NLI-ca_paraphrase-multilingual-mpnet-base",
+        "extra": [],
+    },
+    {
         "name": "multilingual-e5-base",
         "id": "intfloat/multilingual-e5-base",
         "extra": ["--query-prefix", "query: ", "--doc-prefix", "passage: "],
