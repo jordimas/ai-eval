@@ -11,10 +11,9 @@ Usage:
 """
 
 import argparse
-import hashlib
-import json
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Protocol
 
@@ -23,6 +22,8 @@ import soundfile as sf
 import torch
 import torchaudio
 from jiwer import wer, cer
+from asr_eval_common import load_manifest, normalize_text
+from result_io import write_json
 from tqdm import tqdm
 
 
@@ -309,32 +310,6 @@ def load_model(model_name: str, device: str) -> ASRModel:
         raise ValueError(f"Unknown model: {model_name}. Available: {ALL_MODELS}")
 
 
-def normalize_text(text: str) -> str:
-    import re
-    import unicodedata
-
-    text = text.lower()
-    text = unicodedata.normalize("NFKC", text)
-    text = re.sub(r"[^\w\s]", "", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
-
-
-def load_manifest(path: Path) -> dict:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    expected = data.pop("sha256", None)
-    actual = hashlib.sha256(
-        json.dumps(
-            data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        ).encode()
-    ).hexdigest()
-    if not expected or expected != actual:
-        raise ValueError(f"manifest hash mismatch: {path}")
-    if not data.get("records"):
-        raise ValueError(f"manifest contains no records: {path}")
-    return {**data, "sha256": expected}
-
-
 def evaluate_language(
     model: ASRModel,
     model_name: str,
@@ -544,6 +519,7 @@ def main():
 
     results = {
         "model": args.model,
+        "evaluated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "manifest": {
             "path": str(args.manifest),
             "sha256": load_manifest(args.manifest)["sha256"],
@@ -560,9 +536,7 @@ def main():
     }
 
     if output_path:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
+        write_json(output_path, results)
         print(f"\nResults saved to: {output_path}")
 
     print(f"\n{'=' * 60}")
