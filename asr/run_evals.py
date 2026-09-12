@@ -132,7 +132,7 @@ MODELS = [
 
 def main():
     parser = argparse.ArgumentParser(description="Run ASR evals for all models")
-    parser.add_argument("--num_samples", type=int, default=200)
+    parser.add_argument("--num_samples", type=int, default=400)
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     args = parser.parse_args()
 

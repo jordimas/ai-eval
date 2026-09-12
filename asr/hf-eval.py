@@ -11,6 +11,7 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import time
 from dataclasses import dataclass
@@ -18,9 +19,9 @@ from pathlib import Path
 from typing import Optional, Protocol
 
 import numpy as np
+import soundfile as sf
 import torch
 import torchaudio
-from datasets import load_dataset
 from jiwer import wer, cer
 from tqdm import tqdm
 
@@ -33,6 +34,10 @@ class EvalResult:
     cer: float
     total_time: float
     avg_rtf: float  # Real-Time Factor (processing_time / audio_duration)
+    utterances: list[dict]
+
+
+DEFAULT_MANIFEST = Path(__file__).parent / "benchmarks/fleurs_ca_test_400/manifest.json"
 
 
 # Language configuration: FLEURS locale -> model lang codes
@@ -315,16 +320,27 @@ def normalize_text(text: str) -> str:
     return text
 
 
+def load_manifest(path: Path) -> dict:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    expected = data.pop("sha256", None)
+    actual = hashlib.sha256(
+        json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    if not expected or expected != actual:
+        raise ValueError(f"manifest hash mismatch: {path}")
+    if not data.get("records"):
+        raise ValueError(f"manifest contains no records: {path}")
+    return {**data, "sha256": expected}
+
+
 def evaluate_language(
     model: ASRModel,
     model_name: str,
-    lang_code: str,
-    num_samples: int,
-    max_duration: float = 40.0,
+    manifest_path: Path,
     warmup: int = 3,
 ) -> EvalResult:
-    lang_config = LANGUAGE_CONFIG[lang_code]
-    locale = lang_config["fleurs_locale"]
+    manifest = load_manifest(manifest_path)
+    lang_config = LANGUAGE_CONFIG["ca"]
 
     if model_name in OMNILINGUAL_MODELS:
         model_lang = lang_config["omni_lang"]
@@ -332,64 +348,49 @@ def evaluate_language(
         model_lang = lang_config["whisper_lang"]
 
     print(f"\n{'=' * 60}")
-    print(f"Evaluating {lang_config['name']} ({lang_code}) on FLEURS")
+    print(f"Evaluating {lang_config['name']} (ca) on FLEURS")
     print(f"Model: {model_name} | Lang code: {model_lang}")
+    print(f"Manifest: {manifest_path} ({manifest['sha256'][:12]})")
     print(f"{'=' * 60}")
 
-    print(f"Loading FLEURS dataset for {lang_config['name']} (streaming)...")
-    dataset = load_dataset(
-        "google/fleurs",
-        locale,
-        split="test",
-        streaming=True,
-        trust_remote_code=True,
-    )
-
-    print(f"Evaluating on {num_samples} samples...")
+    print(f"Evaluating {len(manifest['records'])} local samples...")
 
     references = []
     hypotheses = []
     rtfs = []
     skipped = 0
     processed = 0
+    utterances = []
     start_time = time.time()
 
-    resampler = torchaudio.transforms.Resample(48000, 16000)
-
     with torch.no_grad():
-        for sample in tqdm(
-            dataset, desc=f"Processing {lang_config['name']}", total=num_samples
-        ):
-            if processed >= num_samples:
-                break
-
+        for record in tqdm(manifest["records"], desc=f"Processing {lang_config['name']}"):
             try:
-                reference = sample["transcription"]
-                audio_array = sample["audio"]["array"]
-                sample_rate = sample["audio"]["sampling_rate"]
+                audio_path = manifest_path.parent / record["audio"]
+                audio_array, sample_rate = sf.read(audio_path, dtype="float32")
+                if audio_array.ndim == 2:
+                    audio_array = audio_array.mean(axis=1)
                 duration = len(audio_array) / sample_rate
-
-                if duration > max_duration:
-                    skipped += 1
-                    continue
-
                 waveform = torch.tensor(audio_array, dtype=torch.float32)
 
                 if sample_rate != 16000:
-                    if sample_rate != 48000:
-                        resampler = torchaudio.transforms.Resample(sample_rate, 16000)
+                    resampler = torchaudio.transforms.Resample(sample_rate, 16000)
                     waveform = resampler(waveform.unsqueeze(0)).squeeze(0)
                     sample_rate = 16000
 
+                if torch.cuda.is_available() and getattr(model, "device", None) == "cuda":
+                    torch.cuda.synchronize()
                 inference_start = time.perf_counter()
                 hypothesis = model.transcribe(waveform, sample_rate, model_lang)
+                if torch.cuda.is_available() and getattr(model, "device", None) == "cuda":
+                    torch.cuda.synchronize()
                 inference_end = time.perf_counter()
 
                 if processed >= warmup:
                     rtf = (inference_end - inference_start) / duration
                     rtfs.append(rtf)
 
-                ref_normalized = normalize_text(reference)
+                ref_normalized = normalize_text(record["reference"])
                 hyp_normalized = normalize_text(hypothesis)
 
                 if ref_normalized:
@@ -397,6 +398,18 @@ def evaluate_language(
                     hypotheses.append(hyp_normalized)
 
                 processed += 1
+                utterances.append(
+                    {
+                        "id": record["id"],
+                        "duration_s": record["duration_s"],
+                        "reference": record["reference"],
+                        "hypothesis_raw": hypothesis,
+                        "reference_normalized": ref_normalized,
+                        "hypothesis_normalized": hyp_normalized,
+                        "latency_s": round(inference_end - inference_start, 6),
+                        "status": "ok",
+                    }
+                )
 
                 del waveform, audio_array
 
@@ -406,6 +419,7 @@ def evaluate_language(
             except Exception as e:
                 print(f"\nError processing sample: {e}")
                 skipped += 1
+                utterances.append({"id": record["id"], "status": "error", "error": str(e)})
                 continue
 
     total_time = time.time() - start_time
@@ -426,6 +440,7 @@ def evaluate_language(
         cer=char_error_rate,
         total_time=total_time,
         avg_rtf=avg_rtf,
+        utterances=utterances,
     )
 
     print(f"\nResults for {lang_config['name']}:")
@@ -460,8 +475,14 @@ def main():
     parser.add_argument(
         "--num_samples",
         type=int,
-        default=200,
-        help="Number of samples to evaluate (default: 200)",
+        default=400,
+        help="Deprecated; the manifest determines the selected samples",
+    )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=DEFAULT_MANIFEST,
+        help="Local manifest created by dataset_preparation.py",
     )
     parser.add_argument(
         "--output",
@@ -506,15 +527,10 @@ def main():
     t_start = time.time()
     model = load_model(args.model, args.device)
 
-    max_duration = (
-        Gemma4Wrapper.MAX_AUDIO_DURATION if args.model in GEMMA_MODELS else 40.0
-    )
     result = evaluate_language(
         model=model,
         model_name=args.model,
-        lang_code="ca",
-        num_samples=args.num_samples,
-        max_duration=max_duration,
+        manifest_path=args.manifest,
     )
 
     elapsed = time.time() - t_start
@@ -522,6 +538,7 @@ def main():
 
     results = {
         "model": args.model,
+        "manifest": {"path": str(args.manifest), "sha256": load_manifest(args.manifest)["sha256"]},
         "benchmarks": {
             "fleurs_ca": {
                 "wer": round(result.wer, 4),
@@ -530,6 +547,7 @@ def main():
                 "n": result.num_samples,
             }
         },
+        "utterances": result.utterances,
     }
 
     if output_path:
