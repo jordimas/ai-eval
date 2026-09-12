@@ -323,10 +323,6 @@ def main():
         "model": args.model,
         "cloud": True,
         "evaluated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "manifest": {
-            "path": str(args.manifest),
-            "sha256": load_manifest(args.manifest)["sha256"],
-        },
         "benchmarks": {
             "fleurs_ca": {
                 "wer": round(result.wer, 4),
@@ -335,7 +331,6 @@ def main():
                 "n": result.num_samples,
             }
         },
-        "utterances": result.utterances,
     }
 
     if output_path:
