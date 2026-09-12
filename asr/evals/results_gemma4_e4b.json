@@ -1,13 +1,14 @@
 {
   "model": "gemma-4-E4B",
   "params_b": 4.5,
-  "memory_gb": 9.0,
+  "memory_gb": 9,
+  "evaluated_at": "2026-09-12T17:35:39+00:00",
   "benchmarks": {
     "fleurs_ca": {
-      "wer": 0.2385,
-      "cer": 0.199,
-      "rtf": 0.3284,
-      "n": 200
+      "wer": 0.2283,
+      "cer": 0.1888,
+      "rtf": 5.431,
+      "n": 10
     }
   }
 }

@@ -2,12 +2,13 @@
   "model": "whisper-tiny",
   "params_b": 0.039,
   "memory_gb": 0.08,
+  "evaluated_at": "2026-09-12T16:55:38+00:00",
   "benchmarks": {
     "fleurs_ca": {
       "wer": 0.3806,
-      "cer": 0.1328,
-      "rtf": 0.0326,
-      "n": 200
+      "cer": 0.1385,
+      "rtf": 0.0325,
+      "n": 400
     }
   }
 }

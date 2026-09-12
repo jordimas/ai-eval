@@ -1,12 +1,12 @@
 {
   "model": "microsoft/VibeVoice-ASR",
-  "params_b": 9.0,
-  "memory_gb": 18.0,
+  "params_b": 9,
+  "memory_gb": 18,
   "benchmarks": {
     "fleurs_ca": {
       "wer": 0.0984,
       "cer": 0.0469,
-      "rtf": 0.0,
+      "rtf": 0,
       "n": 200
     }
   }
