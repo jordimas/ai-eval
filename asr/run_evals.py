@@ -114,10 +114,10 @@ MODELS = [
         "needs_openai_api_key": True,
     },
     {
-        "label": "gemini-3.6-flash",
+        "label": "gemini-3.8-flash",
         "script": "cloud-eval.py",
-        "args": ["gemini-3.6-flash"],
-        "output": "evals/results_gemini_3_6_flash_asr.json",
+        "args": ["gemini-3.8-flash"],
+        "output": "evals/results_gemini_3_8_flash_asr.json",
         "needs_google_api_key": True,
     },
     {
