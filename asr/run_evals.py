@@ -4,8 +4,8 @@ whose output JSON already exists.
 
 Usage:
   python run_evals.py
-  python run_evals.py --num_samples 500
   python run_evals.py --device cuda
+  python run_evals.py --overwrite
 """
 
 import argparse
@@ -132,8 +132,12 @@ MODELS = [
 
 def main():
     parser = argparse.ArgumentParser(description="Run ASR evals for all models")
-    parser.add_argument("--num_samples", type=int, default=400)
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Re-run models whose result files already exist",
+    )
     args = parser.parse_args()
 
     import os
@@ -145,7 +149,7 @@ def main():
     for model in MODELS:
         output_path = SCRIPT_DIR / model["output"]
 
-        if output_path.exists():
+        if output_path.exists() and not args.overwrite:
             print(f"[SKIP] {model['label']} — {output_path} already exists")
             continue
 
@@ -167,12 +171,7 @@ def main():
         if script == "hf-eval.py":
             cmd += ["--device", args.device]
 
-        cmd += [
-            "--num_samples",
-            str(args.num_samples),
-            "--output",
-            model["output"],
-        ]
+        cmd += ["--output", model["output"]]
 
         print(f"\n[RUN] {model['label']}: {' '.join(cmd)}\n{'=' * 60}")
         result = subprocess.run(cmd, cwd=SCRIPT_DIR, stdin=subprocess.DEVNULL)

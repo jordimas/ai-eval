@@ -288,12 +288,6 @@ def main():
         nargs="?",
     )
     parser.add_argument(
-        "--num_samples",
-        type=int,
-        default=400,
-        help="Deprecated; the manifest determines the selected samples",
-    )
-    parser.add_argument(
         "--manifest",
         type=Path,
         default=DEFAULT_MANIFEST,
