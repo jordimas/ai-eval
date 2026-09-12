@@ -471,6 +471,8 @@ def main():
         default=None,
         help="Output JSON file path (default: evals/results_<model>.json)",
     )
+    parser.add_argument("--params-b", type=float)
+    parser.add_argument("--memory-gb", type=float)
     parser.add_argument(
         "--list-models",
         action="store_true",
@@ -519,6 +521,8 @@ def main():
 
     results = {
         "model": args.model,
+        "params_b": args.params_b,
+        "memory_gb": args.memory_gb,
         "evaluated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "benchmarks": {
             "fleurs_ca": {

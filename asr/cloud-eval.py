@@ -321,6 +321,8 @@ def main():
 
     results = {
         "model": args.model,
+        "params_b": args.params_b,
+        "memory_gb": args.memory_gb,
         "cloud": True,
         "evaluated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "benchmarks": {
