@@ -158,7 +158,9 @@ def load_manifest(path: Path) -> dict:
     data = json.loads(path.read_text(encoding="utf-8"))
     expected = data.pop("sha256", None)
     actual = hashlib.sha256(
-        json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        json.dumps(
+            data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode()
     ).hexdigest()
     if not expected or expected != actual:
         raise ValueError(f"manifest hash mismatch: {path}")
@@ -194,7 +196,9 @@ def evaluate_language(
     start_time = time.time()
 
     with torch.no_grad():
-        for record in tqdm(manifest["records"], desc=f"Processing {lang_config['name']}"):
+        for record in tqdm(
+            manifest["records"], desc=f"Processing {lang_config['name']}"
+        ):
             try:
                 audio_path = manifest_path.parent / record["audio"]
                 audio_array, sample_rate = sf.read(audio_path, dtype="float32")
@@ -241,7 +245,9 @@ def evaluate_language(
             except Exception as e:
                 print(f"\nError processing sample: {e}")
                 skipped += 1
-                utterances.append({"id": record["id"], "status": "error", "error": str(e)})
+                utterances.append(
+                    {"id": record["id"], "status": "error", "error": str(e)}
+                )
                 continue
 
     total_time = time.time() - start_time
