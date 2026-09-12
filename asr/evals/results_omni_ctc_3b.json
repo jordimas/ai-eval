@@ -1,7 +1,7 @@
 {
   "model": "omniASR_CTC_3B",
-  "params_b": 3.0,
-  "memory_gb": 6.0,
+  "params_b": 3,
+  "memory_gb": 6,
   "benchmarks": {
     "fleurs_ca": {
       "wer": 0.0976,
